@@ -6,6 +6,8 @@ import control
 import cvxpy as cp
 from math import sin as s, cos as c, atan2
 
+import matplotlib
+matplotlib.rcParams['animation.ffmpeg_path'] = '/usr/bin/ffmpeg'
 
 def plot_results():
     plt.plot(x_pos, y_pos, 'b-', label='Quadcopter')
@@ -63,10 +65,14 @@ def animated_plot2d():
     writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
 
     def update(ii):
-        quad_pos.set_data(x_pos[ii], y_pos[ii])
+        if ii >= len(x_pos) or ii >= len(y_pos):
+            print(f"Index {ii} is out of bounds")
+            return (quad_pos, spline, curr_goal)
+
+        quad_pos.set_data([x_pos[ii]], [y_pos[ii]])
         spline.set_data(spline_x_data, spline_y_data)
-        curr_goal.set_data(ref_x_hist[ii], ref_y_hist[ii])
-        return (quad_pos,) + (spline,) + (curr_goal, )
+        curr_goal.set_data([ref_x_hist[ii]], [ref_y_hist[ii]])
+        return (quad_pos,) + (spline,) + (curr_goal,)
 
     quad_pos, = plt.plot([], [], 'bX', markersize=6.)
     spline, = plt.plot([], [], 'r-', markersize=5.)
@@ -79,31 +85,43 @@ def animated_plot2d():
 
 
 def animated_plot3d():
+    # Sample data
+    sim_ctr = 100  # Number of frames
+    x_pos = np.linspace(0, 5, sim_ctr)
+    y_pos = np.sin(x_pos)
+    # z_pos = np.cos(x_pos)
+    spline_x_data = np.linspace(-1, 6, 50)  # Example spline data
+    spline_y_data = np.sin(spline_x_data)
+
+    # Create figure and 3D axes using p3
     fig = plt.figure()
     ax = p3.Axes3D(fig)
+    fig.add_axes(ax)  # Explicitly add the 3D axes to the figure
     ax.set_xlim(-1., 6.)
     ax.set_ylim(-1., 6.)
     ax.set_zlim(0., 10.)
+    ax.set_xlabel('X position (m)')
+    ax.set_ylabel('Y position (m)')
+    ax.set_zlabel('Z position (m)')
 
-    writer = animation.writers['ffmpeg']
-    writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+    # Initialize plot elements
+    quad_pos, = ax.plot([], [], [], 'bX', markersize=10)  # 3D marker
+    spline, = ax.plot([], [], [], 'r-', linewidth=2)  # 3D line
 
+    # Update function for animation
     def update(ii):
-        quad_pos.set_data(x_pos[ii], y_pos[ii])
-        quad_pos.set_3d_properties(z_pos[ii])
+        quad_pos.set_data([x_pos[ii]], [y_pos[ii]])  # Update X and Y
+        quad_pos.set_3d_properties([z_pos[ii]])  # Update Z
 
-        spline.set_data(spline_x_data, spline_y_data)
-        spline.set_3d_properties(5.)
-        return (quad_pos,) + (spline,)
+        spline.set_data(spline_x_data, spline_y_data)  # Static spline X and Y
+        spline.set_3d_properties([5.] * len(spline_x_data))  # Static Z value
+        return quad_pos, spline
 
-    quad_pos, = plt.plot([], [], 'bX', markersize=10.)
-    spline, = plt.plot([], [], 'r-', markersize=5.)
-    plt.xlabel('X position (m)')
-    plt.ylabel('Y position (m)')
-    line_ani = animation.FuncAnimation(fig, update, sim_ctr, interval=5, repeat=True)
-    # line_ani.save('/home/tyler/Videos/quadcopter_mpc_3d.mp4')
+    # Animation function
+    line_ani = animation.FuncAnimation(fig, update, frames=sim_ctr, interval=100, repeat=True)
+
+    # Show the plot
     plt.show()
-
 
 class SplineGenerator:
     def __init__(self):
@@ -441,5 +459,3 @@ if __name__ == "__main__":
         plot_results()
         animated_plot2d()
         animated_plot3d()
-
-
