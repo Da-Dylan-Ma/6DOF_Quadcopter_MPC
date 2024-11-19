@@ -54,6 +54,16 @@ def plot_results():
     plt.title('Control Inputs')
     plt.show()
 
+    # Plot position error over time
+    plt.figure()
+    plt.plot(time, errors, label="Euclidean Error")
+    plt.xlabel("Time (s)")
+    plt.ylabel("Error (m)")
+    plt.title("Position Error Over Time")
+    plt.grid()
+    plt.legend()
+    plt.show()
+
 
 def animated_plot2d():
     fig = plt.figure()
@@ -450,6 +460,24 @@ if __name__ == "__main__":
         if quad.done(np.array([waypoints[-1][0], waypoints[-1][1]])):
             print('GOAL REACHED')
             goal_found = True
+
+            # Compute errors
+            errors = np.sqrt((np.array(x_pos) - np.array(ref_x_hist)) ** 2 +
+                             (np.array(y_pos) - np.array(ref_y_hist)) ** 2 +
+                             (np.array(z_pos) - des_states['z']) ** 2)
+
+            # Compute error metrics
+            rmse = np.sqrt(np.mean(errors ** 2))
+            mae = np.mean(errors)
+            max_error = np.max(errors)
+            integrated_error = np.sum(errors)
+
+            # Print error metrics
+            print(f"RMSE: {rmse:.3f} m")
+            print(f"MAE: {mae:.3f} m")
+            print(f"Max Error: {max_error:.3f} m")
+            print(f"Integrated Error: {integrated_error:.3f} m")
+
             plot_results()
             animated_plot2d()
             animated_plot3d()
