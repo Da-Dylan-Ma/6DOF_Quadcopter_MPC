@@ -95,18 +95,9 @@ def animated_plot2d():
 
 
 def animated_plot3d():
-    # Sample data
-    sim_ctr = 100  # Number of frames
-    x_pos = np.linspace(0, 5, sim_ctr)
-    y_pos = np.sin(x_pos)
-    # z_pos = np.cos(x_pos)
-    spline_x_data = np.linspace(-1, 6, 50)  # Example spline data
-    spline_y_data = np.sin(spline_x_data)
-
-    # Create figure and 3D axes using p3
+    # Create the figure and 3D axes
     fig = plt.figure()
-    ax = p3.Axes3D(fig)
-    fig.add_axes(ax)  # Explicitly add the 3D axes to the figure
+    ax = fig.add_subplot(111, projection='3d')
     ax.set_xlim(-1., 6.)
     ax.set_ylim(-1., 6.)
     ax.set_zlim(0., 10.)
@@ -115,23 +106,30 @@ def animated_plot3d():
     ax.set_zlabel('Z position (m)')
 
     # Initialize plot elements
-    quad_pos, = ax.plot([], [], [], 'bX', markersize=10)  # 3D marker
-    spline, = ax.plot([], [], [], 'r-', linewidth=2)  # 3D line
+    quad_pos, = ax.plot([], [], [], 'bX', label="Quadcopter", markersize=10)  # Drone marker
+    trajectory, = ax.plot([], [], [], 'r-', label="Trajectory", linewidth=2)  # Drone trajectory
+    waypoints, = ax.plot(spline_x_data, spline_y_data, [des_states['z']] * len(spline_x_data), 'g--', label="Waypoints")
 
     # Update function for animation
     def update(ii):
-        quad_pos.set_data([x_pos[ii]], [y_pos[ii]])  # Update X and Y
-        quad_pos.set_3d_properties([z_pos[ii]])  # Update Z
+        if ii < len(x_pos):  # Ensure the index is valid
+            # Update drone position
+            quad_pos.set_data([x_pos[ii]], [y_pos[ii]])
+            quad_pos.set_3d_properties([z_pos[ii]])
 
-        spline.set_data(spline_x_data, spline_y_data)  # Static spline X and Y
-        spline.set_3d_properties([5.] * len(spline_x_data))  # Static Z value
-        return quad_pos, spline
+            # Update trajectory up to the current frame
+            trajectory.set_data(x_pos[:ii + 1], y_pos[:ii + 1])
+            trajectory.set_3d_properties(z_pos[:ii + 1])
 
-    # Animation function
-    line_ani = animation.FuncAnimation(fig, update, frames=sim_ctr, interval=100, repeat=True)
+        return quad_pos, trajectory, waypoints
 
-    # Show the plot
+    # Number of frames equals the number of simulation steps
+    line_ani = animation.FuncAnimation(fig, update, frames=len(x_pos), interval=100, repeat=False)
+
+    # Add legend and show the plot
+    ax.legend()
     plt.show()
+
 
 class SplineGenerator:
     def __init__(self):
@@ -429,7 +427,7 @@ if __name__ == "__main__":
 
         # Solve convex optimization problem
         x_init.value = x0
-        prob.solve(solver=cp.OSQP, warm_start=True)
+        prob.solve(solver=cp.OSQP, warm_start=True, eps_abs=1e-4)
         x0 = quad.A_zoh.dot(x0) + quad.B_zoh.dot(u[:, 0].value)
 
         # Send only first calculated command to quadcopter, then run optimization again
