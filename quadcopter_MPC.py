@@ -54,16 +54,6 @@ def plot_results():
     plt.title('Control Inputs')
     plt.show()
 
-    # Plot position error over time
-    plt.figure()
-    plt.plot(time, errors, label="Euclidean Error")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Error (m)")
-    plt.title("Position Error Over Time")
-    plt.grid()
-    plt.legend()
-    plt.show()
-
 
 def animated_plot2d():
     fig = plt.figure()
@@ -108,7 +98,7 @@ def animated_plot3d():
     # Initialize plot elements
     quad_pos, = ax.plot([], [], [], 'bX', label="Quadcopter", markersize=10)  # Drone marker
     trajectory, = ax.plot([], [], [], 'r-', label="Trajectory", linewidth=2)  # Drone trajectory
-    waypoints, = ax.plot(spline_x_data, spline_y_data, [des_states['z']] * len(spline_x_data), 'g--', label="Waypoints")
+    waypoints, = ax.plot(spline_x_data, spline_y_data, spline_z_data, 'g--', label="Waypoints")
 
     # Update function for animation
     def update(ii):
@@ -131,6 +121,10 @@ def animated_plot3d():
     plt.show()
 
 
+def smooth_trajectory(data, window_size=5):
+    return np.convolve(data, np.ones(window_size)/window_size, mode='same')
+
+
 class SplineGenerator:
     def __init__(self):
         self.waypoints = None
@@ -146,44 +140,38 @@ class SplineGenerator:
         return self.orig_waypoints
 
     def create_splines(self, waypts):
-        self.waypoints = waypts.reshape((-1, 2))
+        # Handle 3D waypoints (x, y, z)
+        self.waypoints = waypts.reshape((-1, 3))
         self.orig_waypoints = self.waypoints.copy()
         waypts = np.insert(waypts, 0, waypts[0], axis=0)
         waypts = np.insert(waypts, -1, waypts[-1], axis=0)
         splines = []
-        for j in range(len(waypts)-3):
-            this_spline = self.cubic_spline(waypts[j], waypts[j+1], waypts[j+2], waypts[j+3])
+        for j in range(len(waypts) - 3):
+            this_spline = self.cubic_spline(waypts[j], waypts[j + 1], waypts[j + 2], waypts[j + 3])
             splines.append(this_spline)
 
-        self.spline_pts = np.array(splines).reshape((-1, 3))
+        self.spline_pts = np.array(splines).reshape((-1, 4))  # Include slope in 4th column
         return self.spline_pts
 
     @staticmethod
-    def cubic_spline(y0, y1, y2, y3, delt_mu=.001):
+    def cubic_spline(y0, y1, y2, y3, delt_mu=0.001):
         mu = 0.
         points = []
-        prev_x = 0.
-        prev_y = 0.
+        prev_x, prev_y, prev_z = 0., 0., 0.
         while mu <= 1.:
-            mu2 = mu*mu
+            mu2 = mu * mu
             a0 = y3 - y2 - y0 + y1
             a1 = y0 - y1 - a0
             a2 = y2 - y0
             a3 = y1
             mu += delt_mu
-            point = a0*mu*mu2+a1*mu2+a2*mu+a3
-            slope = atan2(point[1]-prev_y, point[0]-prev_x)
+            point = a0 * mu * mu2 + a1 * mu2 + a2 * mu + a3
+            slope = atan2(point[1] - prev_y, point[0] - prev_x)
             point = np.append(point, slope)
             points.append(point)
-            prev_x = point[0]
-            prev_y = point[1]
+            prev_x, prev_y, prev_z = point[0], point[1], point[2]
 
         return points
-
-    def plot(self):
-        plt.plot(self.waypoints[:, 0], self.waypoints[:, 1], 'bx')
-        plt.plot(self.spline_pts[:, 0], self.spline_pts[:, 1], 'r-')
-        plt.show()
 
 
 class Quadcopter:
@@ -252,18 +240,20 @@ class Quadcopter:
 
     @property
     def Q(self):
-        # State cost
         Q = np.eye(12)
-        Q[8, 8] = 5.  # z vel
-        Q[9, 9] = 10.  # x pos
-        Q[10, 10] = 10.  # y pos
-        Q[11, 11] = 100.  # z pos
+        Q[8, 8] = 16.  # z velocity
+        Q[9, 9] = 10.  # x position
+        Q[10, 10] = 10.  # y position
+        Q[11, 11] = 23.  # z position (smaller than x and y)
+        Q[0, 0] = 20.  # roll angle
+        Q[1, 1] = 20.  # pitch angle
+        Q[2, 2] = 20.  # yaw angle
         return Q
 
     @property
     def R(self):
-        # Actuator cost
-        R = np.eye(4)*.001
+        R = np.eye(4) * 0.001  # Default penalty
+        R[0, 0] = 0.047  # Thrust effort
         return R
 
     def zoh(self):
@@ -337,15 +327,24 @@ if __name__ == "__main__":
     DT = .1
 
     # Defined desired waypoints to track
-    waypoints = np.array([[0., 0.], [1., 2.], [2., 4.5], [3., 3.]])
+    waypoints = np.array([
+        [0., 0., 5.],  # Start point
+        [1., 2., 6.],  # Ascend while moving forward
+        [2., 4.5, 4.],  # Descend slightly
+        [3., 3., 7.]  # Ascend to finish
+    ])
 
     # Create intermediate trajectory points in between waypoints
     spline_gen = SplineGenerator()
+    # Create intermediate trajectory points in between waypoints
     spline_data = spline_gen.create_splines(waypoints)
 
+    # Extract x, y, z components of the reference trajectory
     spline_x_data = spline_gen.spline_data[:, 0]
     spline_y_data = spline_gen.spline_data[:, 1]
-    spline_a_data = spline_gen.spline_data[:, 2]
+    # spline_z_data = smooth_trajectory(spline_gen.spline_data[:, 2])
+    spline_z_data = spline_gen.spline_data[:, 2]
+    spline_a_data = spline_gen.spline_data[:, 3]
 
     waypt_thresh = .25
 
@@ -369,7 +368,7 @@ if __name__ == "__main__":
                   'y_dot': 0., 'z_dot': 0., 'x': waypoints[0][0], 'y': waypoints[0][1], 'z': 5.}
 
     [nx, nu] = quad.B.shape
-    N = 20  # MPC Horizon length
+    N = 10  # MPC Horizon length
 
     # Convex optimization solver variables
     x = cp.Variable((nx, N+1))
@@ -404,9 +403,10 @@ if __name__ == "__main__":
     # Run simulation 'nsim' times
     sim_ctr = 0
     goal_found = False
-    for i in range(1, nsim+1):
+    for i in range(1, nsim + 1):
         ref_x = spline_x_data[idx]
         ref_y = spline_y_data[idx]
+        ref_z = spline_z_data[idx]
         ref_a = spline_a_data[idx]
 
         # If quadcopter gets close enough to current goal, move goal along the spline trajectory
@@ -420,7 +420,7 @@ if __name__ == "__main__":
         # Update reference states
         xr = np.array([des_states['roll'], des_states['pitch'], des_states['yaw'], des_states['roll_dot'],
                        des_states['pitch_dot'], des_states['yaw_dot'], des_states['x_dot'], des_states['y_dot'],
-                       des_states['x_dot'], ref_x, ref_y, des_states['z']])
+                       des_states['x_dot'], ref_x, ref_y, ref_z])
 
         # Run optimization for N horizons
         prob = quad.run_mpc(xr)
