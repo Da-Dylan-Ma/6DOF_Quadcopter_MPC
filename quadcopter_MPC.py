@@ -114,7 +114,7 @@ def animated_plot3d():
         return quad_pos, trajectory, waypoints
 
     # Number of frames equals the number of simulation steps
-    line_ani = animation.FuncAnimation(fig, update, frames=len(x_pos), interval=100, repeat=False)
+    line_ani = animation.FuncAnimation(fig, update, frames=len(x_pos), interval=40, repeat=False)
 
     # Add legend and show the plot
     ax.legend()
@@ -368,7 +368,7 @@ if __name__ == "__main__":
                   'y_dot': 0., 'z_dot': 0., 'x': waypoints[0][0], 'y': waypoints[0][1], 'z': 5.}
 
     [nx, nu] = quad.B.shape
-    N = 10  # MPC Horizon length
+    N = 15  # MPC Horizon length
 
     # Convex optimization solver variables
     x = cp.Variable((nx, N+1))
@@ -427,7 +427,7 @@ if __name__ == "__main__":
 
         # Solve convex optimization problem
         x_init.value = x0
-        prob.solve(solver=cp.OSQP, warm_start=True, eps_abs=1e-4)
+        prob.solve(solver=cp.OSQP, warm_start=True, eps_abs=1e-2)
         x0 = quad.A_zoh.dot(x0) + quad.B_zoh.dot(u[:, 0].value)
 
         # Send only first calculated command to quadcopter, then run optimization again
@@ -471,10 +471,10 @@ if __name__ == "__main__":
             integrated_error = np.sum(errors)
 
             # Print error metrics
-            print(f"RMSE: {rmse:.3f} m")
-            print(f"MAE: {mae:.3f} m")
-            print(f"Max Error: {max_error:.3f} m")
-            print(f"Integrated Error: {integrated_error:.3f} m")
+            print(f"RMSE: {rmse:.3f}")
+            print(f"MAE: {mae:.3f}")
+            print(f"Max Error: {max_error:.3f}")
+            print(f"Integrated Error: {integrated_error:.3f}")
 
             plot_results()
             animated_plot2d()
