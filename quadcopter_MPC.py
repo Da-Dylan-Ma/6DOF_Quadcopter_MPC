@@ -115,7 +115,7 @@ def animated_plot3d():
 
     # Number of frames equals the number of simulation steps
     line_ani = animation.FuncAnimation(fig, update, frames=len(x_pos), interval=40, repeat=False)
-
+    line_ani.save('/home/mad29/Videos/quadcopter_mpc_3d.gif')
     # Add legend and show the plot
     ax.legend()
     plt.show()
@@ -327,12 +327,63 @@ if __name__ == "__main__":
     DT = .1
 
     # Defined desired waypoints to track
-    waypoints = np.array([
-        [0., 0., 5.],  # Start point
-        [1., 2., 6.],  # Ascend while moving forward
-        [2., 4.5, 4.],  # Descend slightly
-        [3., 3., 7.]  # Ascend to finish
+    zigzag_altitude_variation = np.array([
+        [0., 0., 5.],
+        [1., 2., 6.],
+        [2., 0., 4.],
+        [3., 2., 7.],
+        [4., 0., 6.]
     ])
+
+    straight_gradual_climb = np.array([
+        [0., 0., 5.],
+        [1., 1., 6.],
+        [2., 2., 7.],
+        [3., 3., 8.],
+        [4., 4., 9.]
+    ])
+
+    circular_const_altitude = np.array([
+        [0., 0., 5.],
+        [1., 1., 5.],
+        [2., 0., 5.],
+        [1., -1., 5.],
+        [0., 0., 5.]
+    ])
+
+    spiral_upwards = np.array([
+        [0., 0., 5.],
+        [1., 1., 6.],
+        [2., 0., 7.],
+        [1., -1., 8.],
+        [4., 2., 9.]
+    ])
+
+    wave_like = np.array([
+        [0., 0., 5.],
+        [1., 1., 6.],
+        [2., 0., 5.],
+        [3., -1., 4.],
+        [4., 0., 6.],
+        [5., 1., 7.]
+    ])
+
+    square_altitude_variation = np.array([
+        [0., 0., 5.],
+        [1., 0., 6.],
+        [1., 1., 7.],
+        [0., 1., 6.],
+        [2., 2., 5.]
+    ])
+
+    customized_trajectory = np.array([
+        [0., 0., 5.],
+        [1., 2., 6.],
+        [2., 4.5, 4.],
+        [3., 3., 7.]
+    ])
+
+    waypoints = customized_trajectory
 
     # Create intermediate trajectory points in between waypoints
     spline_gen = SplineGenerator()
@@ -427,7 +478,7 @@ if __name__ == "__main__":
 
         # Solve convex optimization problem
         x_init.value = x0
-        prob.solve(solver=cp.OSQP, warm_start=True, eps_abs=1e-2)
+        prob.solve(solver=cp.OSQP, warm_start=True, eps_abs=1e-1)
         x0 = quad.A_zoh.dot(x0) + quad.B_zoh.dot(u[:, 0].value)
 
         # Send only first calculated command to quadcopter, then run optimization again
